@@ -1,0 +1,38 @@
+name: Build Dockerimage for Elixir and save as artifact
+
+on:
+  workflow_call:
+    inputs:
+      IMAGE_NAME:
+        required: true
+        type: string
+      DOCKERFILE:
+        type: string
+        default: "Dockerfile"
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Build, tag, and push to repository
+        id: build
+        env:
+          IMAGE_NAME: ${{ inputs.IMAGE_NAME }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build -f ${{ inputs.DOCKERFILE }} -t $IMAGE_NAME:$IMAGE_TAG .
+          docker save --output /tmp/${IMAGE_NAME}.tar ${IMAGE_NAME}:${IMAGE_TAG}
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.IMAGE_NAME }}-${{ github.sha  }}
+          path: /tmp/${{ inputs.IMAGE_NAME }}.tar
+          retention-days: 1
+

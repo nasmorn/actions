@@ -1,0 +1,37 @@
+name: Build a rails application Dockerfile and save an artifact
+
+on:
+  workflow_call:
+    inputs:
+      IMAGE_NAME:
+        required: true
+        type: string
+      DOCKERFILE:
+        type: string
+        default: "Dockerfile"
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Build
+        id: build
+        env:
+          RAILS_MASTER_KEY: ${{ secrets.RAILS_MASTER_KEY }}
+          TAGGED_IMAGE: ${{ inputs.IMAGE_NAME }}:${{ github.sha }}
+        run: |
+          docker build -f ${{ inputs.DOCKERFILE }} --build-arg RAILS_MASTER_KEY=$RAILS_MASTER_KEY --platform linux/x86_64 -t $TAGGED_IMAGE .
+          docker save --output /tmp/${{ inputs.IMAGE_NAME }}.tar $TAGGED_IMAGE
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.IMAGE_NAME }}-${{ github.sha  }}
+          path: /tmp/${{ inputs.IMAGE_NAME }}.tar
+          retention-days: 1
