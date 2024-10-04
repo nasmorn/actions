@@ -9,6 +9,8 @@ on:
       IMAGE_NAME:
         required: true
         type: string
+      IMAGE_TAG:
+        type: string
     secrets:
       AWS_ACCESS_KEY_ID:
         required: true
@@ -59,7 +61,7 @@ jobs:
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           IMAGE_NAME: ${{ inputs.IMAGE_NAME }}
-          IMAGE_TAG: ${{ github.sha }}
+          IMAGE_TAG: ${{ inputs.IMAGE_TAG || github.sha }}
         run: |
           docker image tag $IMAGE_NAME:$IMAGE_TAG $ECR_REGISTRY/$IMAGE_NAME:$IMAGE_TAG
           docker push $ECR_REGISTRY/$IMAGE_NAME:$IMAGE_TAG
