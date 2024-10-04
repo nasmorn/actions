@@ -40,13 +40,3 @@ jobs:
           name: ${{ inputs.IMAGE_NAME }}-${{ github.sha  }}
           path: /tmp/${{ inputs.IMAGE_NAME }}.tar
           retention-days: 1
-
-  push-to-ecr:
-    needs: [download]
-    uses: nasmorn/actions/.github/workflows/ecr-push.yml@main
-    with:
-      AWS_REGION: ${{ inputs.AWS_REGION }}
-      IMAGE_NAME: ${{ inputs.IMAGE_NAME }}
-    secrets: inherit
-    permissions:
-      contents: read
