@@ -9,7 +9,9 @@ on:
       PG_VERSION:
         type: string
         default: "postgres:16"
-
+    secrets:
+      RAILS_MASTER_KEY:
+        required: true
 jobs:
   test:
     permissions:
@@ -53,4 +55,5 @@ jobs:
       env:
         RAILS_ENV: test
         DATABASE_URL: "postgresql://ci:postgres@localhost:5432/ci_test?pool=5"
+        RAILS_MASTER_KEY: ${{ secrets.RAILS_MASTER_KEY }}
       run: bin/rspec
