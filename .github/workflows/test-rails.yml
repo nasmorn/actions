@@ -1,0 +1,55 @@
+name: Test Rails application
+
+on:
+  workflow_call:
+    inputs:
+      RUBY_VERSION:
+        required: true
+        type: string
+      PG_VERSION:
+        required: true
+        type: string
+        default: "postgres:16"
+
+jobs:
+  test:
+      name: Run rspec
+      runs-on: ubuntu-latest
+      services:
+        db:
+          image: ${{ inputs.PG_VERSION }}
+          ports: ['5432:5432']
+          env:
+            POSTGRES_USER: ci
+            POSTGRES_DB: ci_test
+            POSTGRES_PASSWORD: postgres
+          options: >-
+            --health-cmd pg_isready
+            --health-interval 10s
+            --health-timeout 5s
+            --health-retries 5
+
+      steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: ${{ inputs.RUBY_VERSION }}
+          bundler-cache: true
+
+      - name: Install gems
+        run: |
+          bundle config path vendor/bundle
+          bundle install --jobs 4 --retry 3
+
+      - name: Setup test database
+        run: |
+          bin/rails db:schema:load
+
+      - name: Run tests
+        env:
+          RAILS_ENV: test
+          DATABASE_URL: "postgresql://ci:postgres@localhost:5432/ci_test?pool=5"
+        run: bin/rspec
