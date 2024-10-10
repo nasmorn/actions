@@ -12,6 +12,12 @@ on:
     secrets:
       RAILS_MASTER_KEY:
         required: true
+
+env:
+  RAILS_ENV: test
+  DATABASE_URL: "postgresql://ci:postgres@localhost:5432/ci_test?pool=5"
+  RAILS_MASTER_KEY: ${{ secrets.RAILS_MASTER_KEY }}
+
 jobs:
   test:
     permissions:
@@ -48,16 +54,8 @@ jobs:
         bundle install --jobs 4 --retry 3
 
     - name: Setup test database
-      env:
-        RAILS_ENV: test
-        DATABASE_URL: "postgresql://ci:postgres@localhost:5432/ci_test?pool=5"
-        RAILS_MASTER_KEY: ${{ secrets.RAILS_MASTER_KEY }}
       run: |
         bin/rails db:schema:load
 
     - name: Run tests
-      env:
-        RAILS_ENV: test
-        DATABASE_URL: "postgresql://ci:postgres@localhost:5432/ci_test?pool=5"
-        RAILS_MASTER_KEY: ${{ secrets.RAILS_MASTER_KEY }}
       run: bin/rspec
