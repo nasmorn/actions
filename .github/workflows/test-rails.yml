@@ -8,7 +8,7 @@ on:
         type: string
       PG_VERSION:
         type: string
-        default: "postgres:16"
+        default: "postgres:17"
     secrets:
       RAILS_MASTER_KEY:
         required: true
