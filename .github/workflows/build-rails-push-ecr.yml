@@ -67,11 +67,19 @@ jobs:
           IMAGE_NAME: ${{ inputs.IMAGE_NAME }}
           IMAGE_TAG: ${{ github.sha }}
           RAILS_MASTER_KEY: ${{ secrets.RAILS_MASTER_KEY }}
-        # The master key is passed both ways: as a build arg for Dockerfiles with
-        # `ARG RAILS_MASTER_KEY`, and as a BuildKit secret for Dockerfiles that use
-        # `RUN --mount=type=secret,id=RAILS_MASTER_KEY`. Docker ignores the unused one.
+        # Dockerfiles that read the master key with
+        # `RUN --mount=type=secret,id=RAILS_MASTER_KEY` get it only as a BuildKit
+        # secret, which never ends up in the image. Only Dockerfiles that still use
+        # `ARG RAILS_MASTER_KEY` get the old build arg, whose value is recorded in
+        # plain text in the image history; migrate those to the secret.
         run: |
-          docker buildx build -f Dockerfile --build-arg RAILS_MASTER_KEY=$RAILS_MASTER_KEY --secret id=RAILS_MASTER_KEY,env=RAILS_MASTER_KEY --platform ${{ inputs.PLATFORM }} --load -t $ECR_REGISTRY/$IMAGE_NAME:$IMAGE_TAG .
+          if grep -qE 'type=secret,[^ ]*id=RAILS_MASTER_KEY' Dockerfile; then
+            KEY_ARGS="--secret id=RAILS_MASTER_KEY,env=RAILS_MASTER_KEY"
+          else
+            echo "::warning file=Dockerfile::RAILS_MASTER_KEY is passed as a build arg and ends up in the image history; read it with RUN --mount=type=secret,id=RAILS_MASTER_KEY instead"
+            KEY_ARGS="--build-arg RAILS_MASTER_KEY"
+          fi
+          docker buildx build -f Dockerfile $KEY_ARGS --platform ${{ inputs.PLATFORM }} --load -t $ECR_REGISTRY/$IMAGE_NAME:$IMAGE_TAG .
           docker push $ECR_REGISTRY/$IMAGE_NAME:$IMAGE_TAG
           echo "IMAGE=$ECR_REGISTRY/$IMAGE_NAME:$IMAGE_TAG" >> "$GITHUB_OUTPUT"
           echo "IMAGE_TAG=$IMAGE_TAG" >> "$GITHUB_OUTPUT"
