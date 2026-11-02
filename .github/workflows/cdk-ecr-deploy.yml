@@ -31,10 +31,17 @@ jobs:
           node-version: 24
           cache: "npm"
           cache-dependency-path: cdk/package-lock.json
+          # Private @nasmorn packages (e.g. @nasmorn/cdk-constructs) come from GitHub Packages.
+          # The caller must grant `packages: read`, and the package must give the
+          # calling repository Actions access.
+          registry-url: https://npm.pkg.github.com
+          scope: "@nasmorn"
 
       - name: Install dependencies
         working-directory: ./cdk
         run: npm install
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
