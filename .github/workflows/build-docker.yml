@@ -13,10 +13,15 @@ on:
       PLATFORM:
         type: string
         default: "linux/amd64"
+      # Cache image layers in the GitHub Actions cache (scoped per image)
+      LAYER_CACHE:
+        type: boolean
+        default: false
 
 jobs:
   build-and-push:
-    runs-on: ubuntu-latest
+    # arm64 images build natively on GitHub's hosted arm64 runner instead of under QEMU
+    runs-on: ${{ inputs.PLATFORM == 'linux/arm64' && 'ubuntu-24.04-arm' || 'ubuntu-latest' }}
     permissions:
       contents: read
 
@@ -24,21 +29,33 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v5
 
+      # Only a platform the runner can't build natively needs emulation
       - name: Set up QEMU
-        if: inputs.PLATFORM != 'linux/amd64'
+        if: inputs.PLATFORM != 'linux/amd64' && inputs.PLATFORM != 'linux/arm64'
         uses: docker/setup-qemu-action@v4
 
+      # The layer cache needs the docker-container driver
       - name: Set up Docker Buildx
-        if: inputs.PLATFORM != 'linux/amd64'
+        if: inputs.LAYER_CACHE || (inputs.PLATFORM != 'linux/amd64' && inputs.PLATFORM != 'linux/arm64')
         uses: docker/setup-buildx-action@v4
+
+      # Exposes the cache credentials to the docker buildx run step below
+      - name: Expose GitHub Actions runtime for the layer cache
+        if: inputs.LAYER_CACHE
+        uses: crazy-max/ghaction-github-runtime@v3
 
       - name: Build, tag, and push to repository
         id: build
         env:
           IMAGE_NAME: ${{ inputs.IMAGE_NAME }}
           IMAGE_TAG: ${{ github.sha }}
+          LAYER_CACHE: ${{ inputs.LAYER_CACHE }}
         run: |
-          docker buildx build -f ${{ inputs.DOCKERFILE }} --platform ${{ inputs.PLATFORM }} --load -t $IMAGE_NAME:$IMAGE_TAG .
+          CACHE_ARGS=""
+          if [ "$LAYER_CACHE" = "true" ]; then
+            CACHE_ARGS="--cache-from type=gha,scope=$IMAGE_NAME --cache-to type=gha,mode=max,scope=$IMAGE_NAME"
+          fi
+          docker buildx build -f ${{ inputs.DOCKERFILE }} $CACHE_ARGS --platform ${{ inputs.PLATFORM }} --load -t $IMAGE_NAME:$IMAGE_TAG .
           docker save --output /tmp/${IMAGE_NAME}.tar ${IMAGE_NAME}:${IMAGE_TAG}
 
       - name: Upload artifact
