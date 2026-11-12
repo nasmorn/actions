@@ -35,7 +35,7 @@ on:
 jobs:
   build-and-push:
     # arm64 images build natively on GitHub's hosted arm64 runner instead of under QEMU
-    runs-on: ${{ inputs.PLATFORM == 'linux/arm64' && 'ubuntu-24.04-arm' || 'ubuntu-latest' }}
+    runs-on: ${{ inputs.PLATFORM == 'linux/arm64' && 'ubuntu-26.04-arm' || 'ubuntu-26.04' }}
     outputs:
       IMAGE: ${{ steps.build.outputs.IMAGE }}
       IMAGE_TAG: ${{ steps.build.outputs.IMAGE_TAG }}
@@ -44,7 +44,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
 
       # Only a platform the runner can't build natively needs emulation
       - name: Set up QEMU
@@ -59,19 +59,19 @@ jobs:
       # Exposes the cache credentials to the docker buildx run step below
       - name: Expose GitHub Actions runtime for the layer cache
         if: inputs.LAYER_CACHE
-        uses: crazy-max/ghaction-github-runtime@v3
+        uses: crazy-max/ghaction-github-runtime@v4
 
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4.0.2
+        uses: aws-actions/configure-aws-credentials@v6
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ inputs.AWS_REGION }}
-          mask-aws-account-id: 'no'
+          mask-aws-account-id: false
 
       - name: Login to Amazon ECR
         id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v2.0.1
+        uses: aws-actions/amazon-ecr-login@v2.1.7
 
       - name: Build, tag, and push to repository
         id: build

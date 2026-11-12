@@ -12,13 +12,13 @@ on:
 
 jobs:
   build-and-push:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     permissions:
       contents: write
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
 
       - name: Build, tag, and push to repository
         id: build
@@ -30,7 +30,7 @@ jobs:
           docker save --output /tmp/${IMAGE_NAME}.tar ${IMAGE_NAME}:${IMAGE_TAG}
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ inputs.IMAGE_NAME }}-${{ github.sha  }}
           path: /tmp/${{ inputs.IMAGE_NAME }}.tar
