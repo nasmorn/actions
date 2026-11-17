@@ -24,6 +24,8 @@ jobs:
       contents: read
     name: Run rspec
     runs-on: ubuntu-26.04
+    # A hung step (seen once in bundle install) would otherwise run for 6 hours
+    timeout-minutes: 20
     services:
       db:
         image: ${{ inputs.PG_VERSION }}
