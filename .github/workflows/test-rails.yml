@@ -9,6 +9,16 @@ on:
       PG_VERSION:
         type: string
         default: "postgres:17"
+      # Browser specs (spec/system, playwright-ruby-client; templates/rails/playwright.rb):
+      # installs the pinned Playwright Chromium before rspec, uploads traces on failure.
+      browser:
+        type: boolean
+        default: false
+      # The one Playwright version for all apps; each app pins the playwright npm package
+      # to exactly it in e2e/package.json, and the job fails if the two differ.
+      PLAYWRIGHT_VERSION:
+        type: string
+        default: "1.65.1"
     secrets:
       RAILS_MASTER_KEY:
         required: true
@@ -16,7 +26,6 @@ on:
 env:
   RAILS_ENV: test
   DATABASE_URL: "postgresql://ci:postgres@localhost:5432/ci_test?pool=5"
-  RAILS_MASTER_KEY: ${{ secrets.RAILS_MASTER_KEY }}
 
 jobs:
   test:
@@ -56,8 +65,72 @@ jobs:
         bundle install --jobs 4 --retry 3
 
     - name: Setup test database
+      env:
+        RAILS_MASTER_KEY: ${{ secrets.RAILS_MASTER_KEY }}
       run: |
         bin/rails db:schema:load
 
+    - name: Setup Node
+      if: inputs.browser
+      uses: actions/setup-node@v7
+      with:
+        node-version: 26
+        cache: "npm"
+        cache-dependency-path: e2e/package-lock.json
+
+    - name: Install Playwright driver
+      if: inputs.browser
+      working-directory: e2e
+      env:
+        EXPECTED: ${{ inputs.PLAYWRIGHT_VERSION }}
+      run: |
+        pinned=$(node -p 'const p = require("./package.json"); (p.devDependencies || {}).playwright || (p.dependencies || {}).playwright || ""')
+        if [ "$pinned" != "$EXPECTED" ]; then
+          echo "::error::e2e/package.json pins playwright \"$pinned\"; it must be exactly the shared version $EXPECTED (PLAYWRIGHT_VERSION in nasmorn/actions test-rails.yml)"
+          exit 1
+        fi
+        npm ci --ignore-scripts
+
+    - name: Restore Playwright Chromium
+      if: inputs.browser
+      id: playwright-cache
+      uses: actions/cache/restore@v6
+      with:
+        path: ~/.cache/ms-playwright
+        key: playwright-chromium-${{ runner.os }}-${{ runner.arch }}-${{ inputs.PLAYWRIGHT_VERSION }}
+
+    - name: Install Playwright Chromium
+      if: inputs.browser
+      working-directory: e2e
+      env:
+        CACHE_HIT: ${{ steps.playwright-cache.outputs.cache-hit }}
+      run: |
+        # The cache holds the browser; its system libraries come from apt on every run
+        if [ "$CACHE_HIT" = "true" ]; then
+          npx playwright install-deps chromium
+        else
+          npx playwright install --with-deps chromium
+        fi
+
+    # Saved right away, so a run with failing specs still fills the cache
+    - name: Save Playwright Chromium
+      if: inputs.browser && steps.playwright-cache.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v6
+      with:
+        path: ~/.cache/ms-playwright
+        key: ${{ steps.playwright-cache.outputs.cache-primary-key }}
+
     - name: Run tests
+      env:
+        RAILS_MASTER_KEY: ${{ secrets.RAILS_MASTER_KEY }}
       run: bin/rspec
+
+    - name: Upload Playwright traces
+      # Also when the job timed out (cancelled), e.g. on a hung spec
+      if: (failure() || cancelled()) && inputs.browser
+      uses: actions/upload-artifact@v7
+      with:
+        name: playwright-traces
+        path: tmp/playwright/
+        if-no-files-found: ignore
+        retention-days: 14
