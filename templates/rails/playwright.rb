@@ -59,7 +59,9 @@ RSpec.configure do |config|
     Capybara.current_driver = :null
     base_url = Capybara.current_session.server.base_url # boots Puma on first use
 
-    PlaywrightBrowser.browser.new_context(baseURL: base_url) do |context|
+    # More context options per example, e.g. browser_context: { httpCredentials: {…} }
+    options = example.metadata.fetch(:browser_context, {})
+    PlaywrightBrowser.browser.new_context(baseURL: base_url, **options) do |context|
       context.set_default_timeout(10_000) # actions; Playwright's 30 s makes failures slow
       context.tracing.start(screenshots: true, snapshots: true, sources: true)
       @playwright_page = context.new_page
