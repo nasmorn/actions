@@ -14,6 +14,11 @@ on:
       browser:
         type: boolean
         default: false
+      # Extra Ubuntu packages the specs need, space-separated (e.g. "pdftk-java" for an app
+      # that stamps PDFs with pdftk, as its Docker image does). Installed before rspec.
+      APT_PACKAGES:
+        type: string
+        default: ""
       # The one Playwright version for all apps; each app pins the playwright npm package
       # to exactly it in e2e/package.json, and the job fails if the two differ.
       PLAYWRIGHT_VERSION:
@@ -63,6 +68,15 @@ jobs:
       run: |
         bundle config path vendor/bundle
         bundle install --jobs 4 --retry 3
+
+    - name: Install apt packages
+      if: inputs.APT_PACKAGES != ''
+      env:
+        PACKAGES: ${{ inputs.APT_PACKAGES }}
+      run: |
+        sudo apt-get update -y
+        # Word splitting on purpose: one argument per package
+        sudo apt-get install -y --no-install-recommends $PACKAGES
 
     - name: Setup test database
       env:
