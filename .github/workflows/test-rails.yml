@@ -9,6 +9,19 @@ on:
       PG_VERSION:
         type: string
         default: "postgres:17"
+      # Browser specs (spec/system, playwright-ruby-client; templates/rails/playwright.rb):
+      # installs the pinned Playwright Chromium before rspec, uploads traces on failure.
+      browser:
+        type: boolean
+        default: false
+      # The one Playwright version for all apps; each app pins the playwright npm package
+      # to it in PLAYWRIGHT_DIR/package.json, and the job fails if the two differ.
+      PLAYWRIGHT_VERSION:
+        type: string
+        default: "1.65.1"
+      PLAYWRIGHT_DIR:
+        type: string
+        default: e2e
     secrets:
       RAILS_MASTER_KEY:
         required: true
@@ -59,5 +72,56 @@ jobs:
       run: |
         bin/rails db:schema:load
 
+    - name: Setup Node
+      if: inputs.browser
+      uses: actions/setup-node@v7
+      with:
+        node-version: 26
+        cache: "npm"
+        cache-dependency-path: ${{ inputs.PLAYWRIGHT_DIR }}/package-lock.json
+
+    - name: Install Playwright driver
+      if: inputs.browser
+      working-directory: ${{ inputs.PLAYWRIGHT_DIR }}
+      env:
+        EXPECTED: ${{ inputs.PLAYWRIGHT_VERSION }}
+      run: |
+        npm ci
+        installed=$(node -p 'require("playwright/package.json").version')
+        if [ "$installed" != "$EXPECTED" ]; then
+          echo "::error::$PWD/package.json pins playwright $installed, the shared version is $EXPECTED (PLAYWRIGHT_VERSION)"
+          exit 1
+        fi
+
+    - name: Cache Playwright Chromium
+      if: inputs.browser
+      id: playwright-cache
+      uses: actions/cache@v6
+      with:
+        path: ~/.cache/ms-playwright
+        key: playwright-chromium-${{ runner.os }}-${{ runner.arch }}-${{ inputs.PLAYWRIGHT_VERSION }}
+
+    - name: Install Playwright Chromium
+      if: inputs.browser
+      working-directory: ${{ inputs.PLAYWRIGHT_DIR }}
+      env:
+        CACHE_HIT: ${{ steps.playwright-cache.outputs.cache-hit }}
+      run: |
+        # The cache holds the browser; its system libraries come from apt on every run
+        if [ "$CACHE_HIT" = "true" ]; then
+          npx playwright install-deps chromium
+        else
+          npx playwright install --with-deps chromium
+        fi
+
     - name: Run tests
       run: bin/rspec
+
+    - name: Upload Playwright traces
+      if: failure() && inputs.browser
+      uses: actions/upload-artifact@v7
+      with:
+        name: playwright-traces
+        path: tmp/playwright/
+        if-no-files-found: ignore
+        retention-days: 14

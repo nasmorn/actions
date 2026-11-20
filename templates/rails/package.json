@@ -1,0 +1,8 @@
+{
+  "name": "APP-e2e",
+  "private": true,
+  "description": "Pins the Playwright driver for the browser specs (spec/system); the app's assets don't use npm.",
+  "devDependencies": {
+    "playwright": "1.65.1"
+  }
+}
